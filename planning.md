@@ -134,16 +134,21 @@ For each tool, describe the specific failure mode you're handling and what the a
 
 Write out what a full user interaction looks like from start to finish — tool call by tool call. Use a specific example query.
 
+FitFindr takes a user's natural language request, extracts the item description plus optional filters like size and max price, then uses that information to search the mock secondhand listings. If a matching item is found, the selected listing is passed into the outfit suggestion tool along with the user's wardrobe, and that outfit is then passed into the fit card tool to create a short shareable caption. If search returns no results, the agent stops before calling the styling tools and tells the user how to adjust the request.
+
 **Example user query:** "I'm looking for a vintage graphic tee under $30. I mostly wear baggy jeans and chunky sneakers. What's out there and how would I style it?"
 
 **Step 1:**
-<!-- What does the agent do first? Which tool is called? With what input? -->
+The agent parses the query into `description="vintage graphic tee"`, `size=None`, and `max_price=30.0`, then calls `search_listings("vintage graphic tee", size=None, max_price=30.0)`. The search tool checks listing titles, descriptions, categories, style tags, colors, sizes, prices, brands, and platforms, then returns matching listings sorted by relevance.
 
 **Step 2:**
-<!-- What happens next? What was returned from step 1? What tool is called now? -->
+The agent stores the returned listings in session state and selects the top result as `selected_item`. If no listings are returned, the agent sets an error message and stops instead of calling `suggest_outfit`.
 
 **Step 3:**
-<!-- Continue until the full interaction is complete -->
+The agent calls `suggest_outfit(selected_item, wardrobe)` using the selected listing and the user's wardrobe. The outfit tool uses wardrobe item names, categories, colors, style tags, and notes to suggest one or more complete outfits that include the new thrifted item.
+
+**Step 4:**
+The agent stores the outfit suggestion in session state, then calls `create_fit_card(outfit_suggestion, selected_item)`. The fit card tool creates a short social caption that mentions the thrifted item, price, platform, and overall styling vibe.
 
 **Final output to user:**
-<!-- What does the user actually see at the end? -->
+The user sees the top listing found, a practical outfit idea using their wardrobe when possible, and a short fit card caption. If search fails, the user sees a helpful message explaining that no matching listings were found and suggesting broader keywords, a higher price limit, or fewer filters.
