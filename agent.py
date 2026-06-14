@@ -18,8 +18,14 @@ Usage (once implemented):
     print(result["error"])   # None on success
 """
 
+import re
+
 from tools import search_listings, suggest_outfit, create_fit_card
 
+SIZE_PATTERN = (
+    r"(?:in\s+)?size\s+"
+    r"((?:us\s*)?\d+(?:\.\d+)?|[a-z]{1,3}(?:/[a-z]{1,3})?|w\d+(?:\s*l\d+)?)\b"
+)
 
 # ── session state ─────────────────────────────────────────────────────────────
 
@@ -46,6 +52,64 @@ def _new_session(query: str, wardrobe: dict) -> dict:
 
 
 # ── planning loop ─────────────────────────────────────────────────────────────
+
+NO_RESULTS_ERROR = (
+    "No listings found for that search. Try broader keywords, removing the "
+    "size filter, or raising your max price."
+)
+OUTFIT_ERROR = (
+    "I found a listing, but couldn't generate a styling suggestion for it. "
+    "Try again with a more detailed wardrobe or a different item."
+)
+FIT_CARD_INPUT_ERROR = "Cannot create a fit card without an outfit suggestion."
+
+
+def _parse_query(query: str) -> dict:
+    """
+    Extract the search description, optional size, and optional max price.
+
+    This uses simple regex parsing so the planning loop can run without an
+    extra LLM call before search.
+    """
+    text = query.strip()
+    first_sentence = re.split(r"[.!?]", text, maxsplit=1)[0]
+
+    price_match = re.search(
+        r"(?:under|below|less than|max(?:imum)?|up to)\s*\$?\s*(\d+(?:\.\d+)?)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if not price_match:
+        price_match = re.search(r"\$(\d+(?:\.\d+)?)", text)
+    max_price = float(price_match.group(1)) if price_match else None
+
+    size_match = re.search(SIZE_PATTERN, text, flags=re.IGNORECASE)
+    size = size_match.group(1).strip() if size_match else None
+
+    description = first_sentence
+    description = re.sub(
+        r"(?:under|below|less than|max(?:imum)?|up to)\s*\$?\s*\d+(?:\.\d+)?",
+        "",
+        description,
+        flags=re.IGNORECASE,
+    )
+    description = re.sub(r"\$\d+(?:\.\d+)?", "", description)
+    description = re.sub(SIZE_PATTERN, "", description, flags=re.IGNORECASE)
+    description = re.sub(
+        r"\b(?:i'm|i am|im|looking for|searching for|find me|show me|want|need|a|an|the)\b",
+        " ",
+        description,
+        flags=re.IGNORECASE,
+    )
+    description = re.sub(r"[,;:]", " ", description)
+    description = re.sub(r"\s+", " ", description).strip()
+
+    return {
+        "description": description or first_sentence.strip() or text,
+        "size": size,
+        "max_price": max_price,
+    }
+
 
 def run_agent(query: str, wardrobe: dict) -> dict:
     """
@@ -92,9 +156,34 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     Before writing code, complete the Planning Loop and State Management sections
     of planning.md — your implementation should match what you described there.
     """
-    # TODO: implement the planning loop
     session = _new_session(query, wardrobe)
-    session["error"] = "Planning loop not yet implemented."
+
+    session["parsed"] = _parse_query(query)
+    results = search_listings(
+        description=session["parsed"]["description"],
+        size=session["parsed"].get("size"),
+        max_price=session["parsed"].get("max_price"),
+    )
+    session["search_results"] = results
+
+    if not results:
+        session["error"] = NO_RESULTS_ERROR
+        return session
+
+    session["selected_item"] = results[0]
+
+    outfit = suggest_outfit(session["selected_item"], session["wardrobe"])
+    if not outfit or not outfit.strip():
+        session["error"] = OUTFIT_ERROR
+        return session
+    session["outfit_suggestion"] = outfit
+
+    fit_card = create_fit_card(session["outfit_suggestion"], session["selected_item"])
+    if not fit_card or not fit_card.strip() or fit_card == FIT_CARD_INPUT_ERROR:
+        session["error"] = fit_card or FIT_CARD_INPUT_ERROR
+        return session
+    session["fit_card"] = fit_card
+
     return session
 
 
@@ -121,3 +210,4 @@ if __name__ == "__main__":
         wardrobe=get_example_wardrobe(),
     )
     print(f"Error message: {session2['error']}")
+    print(f"Fit card: {session2['fit_card']}")

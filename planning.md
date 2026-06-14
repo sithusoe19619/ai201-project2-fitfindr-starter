@@ -136,6 +136,12 @@ Planning Loop ──────────────────────
 
 ## AI Tool Plan
 
+**Milestone 1 — Repo exploration and problem understanding:**
+I will use ChatGPT/Codex to inspect the starter repo files and summarize what the project needs to do before writing code. I will give it the Milestone 1 instructions and have it read `data/listings.json`, `data/wardrobe_schema.json`, `utils/data_loader.py`, and the **A Complete Interaction** section of `planning.md`. I expect it to produce a concise description of the FitFindr workflow and a step-by-step interaction trace. I will verify the output by checking that it names the available listing fields, wardrobe fields, data loader helpers, happy path, and no-results path.
+
+**Milestone 2 — Written agent spec:**
+I will use ChatGPT/Codex to help turn the Milestone 1 understanding into an implementation-ready spec in `planning.md`. I will give it the project requirements, the starter planning template, the tool specs I want, and the required text-based architecture diagram. I expect it to fill in tool interfaces, planning loop branches, state management, error handling, architecture, AI tool plan, and the complete interaction walkthrough. I will verify there are no placeholder comments left and that another developer could implement the agent from the spec alone.
+
 **Milestone 3 — Individual tool implementations:**
 I will use ChatGPT/Codex to help implement the three required tools in `tools.py`. I will give it the **Tools** section, the **Error Handling** table, and the data schema details from the Milestone 1 exploration. I expect it to produce implementations for `search_listings`, `suggest_outfit`, and `create_fit_card` that match the documented function signatures, use `load_listings()` from `utils/data_loader.py`, and handle empty or invalid inputs without crashing.
 
