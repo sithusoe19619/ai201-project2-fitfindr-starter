@@ -53,15 +53,27 @@ def _new_session(query: str, wardrobe: dict) -> dict:
 
 # ── planning loop ─────────────────────────────────────────────────────────────
 
-NO_RESULTS_ERROR = (
-    "No listings found for that search. Try broader keywords, removing the "
-    "size filter, or raising your max price."
-)
 OUTFIT_ERROR = (
     "I found a listing, but couldn't generate a styling suggestion for it. "
     "Try again with a more detailed wardrobe or a different item."
 )
 FIT_CARD_INPUT_ERROR = "Cannot create a fit card without an outfit suggestion."
+
+
+def _no_results_error(parsed: dict) -> str:
+    """Build a no-results message that identifies the failed constraints."""
+    description = parsed.get("description") or "that item"
+    constraints = []
+    if parsed.get("size"):
+        constraints.append(f"size {parsed['size']}")
+    if parsed.get("max_price") is not None:
+        constraints.append(f"under ${parsed['max_price']:g}")
+
+    constraint_text = f" in {' and '.join(constraints)}" if constraints else ""
+    return (
+        f'No exact listings matched "{description}"{constraint_text}. '
+        "Try removing a filter or using a broader item description."
+    )
 
 
 def _parse_query(query: str) -> dict:
@@ -167,7 +179,7 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     session["search_results"] = results
 
     if not results:
-        session["error"] = NO_RESULTS_ERROR
+        session["error"] = _no_results_error(session["parsed"])
         return session
 
     session["selected_item"] = results[0]

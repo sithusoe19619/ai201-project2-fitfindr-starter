@@ -76,6 +76,48 @@ def _listing_search_text(listing: dict) -> str:
     return " ".join(str(value) for value in values if value)
 
 
+def _size_matches(requested_size: str, listing_size: str) -> bool:
+    """Match clothing and shoe sizes without substring false positives."""
+    requested = requested_size.strip().lower()
+    available = listing_size.strip().lower()
+
+    requested_numbers = re.findall(r"\d+(?:\.\d+)?", requested)
+    if requested_numbers:
+        available_numbers = re.findall(r"\d+(?:\.\d+)?", available)
+        return requested_numbers == available_numbers
+
+    requested_tokens = _tokenize(requested)
+    available_tokens = _tokenize(available)
+    return requested_tokens.issubset(available_tokens)
+
+
+def _matches_requested_item_type(query_tokens: set[str], listing: dict) -> bool:
+    """Prevent a color-only match from returning the wrong kind of item."""
+    item_type_groups = [
+        {"tee", "shirt", "top"},
+        {"hoodie", "sweatshirt", "crewneck"},
+        {"jeans", "pants", "trousers", "bottoms"},
+        {"shorts"},
+        {"skirt"},
+        {"dress"},
+        {"jacket", "blazer", "bomber", "windbreaker", "outerwear"},
+        {"boots", "boot"},
+        {"sneakers", "shoes", "shoe"},
+        {"belt"},
+        {"bag"},
+        {"hat"},
+        {"cardigan"},
+        {"vest"},
+    ]
+    listing_tokens = _tokenize(_listing_search_text(listing))
+
+    for group in item_type_groups:
+        requested_types = query_tokens & group
+        if requested_types and not listing_tokens.intersection(group):
+            return False
+    return True
+
+
 def _format_listing(item: dict) -> str:
     """Format a listing for an LLM prompt."""
     return (
@@ -153,8 +195,11 @@ def search_listings(
         if max_price is not None and listing["price"] > max_price:
             continue
 
-        listing_size = str(listing.get("size", "")).lower()
-        if requested_size and requested_size not in listing_size:
+        listing_size = str(listing.get("size", ""))
+        if requested_size and not _size_matches(requested_size, listing_size):
+            continue
+
+        if not _matches_requested_item_type(query_tokens, listing):
             continue
 
         search_text = _listing_search_text(listing)
@@ -212,7 +257,12 @@ New item:
 
 The user has not added wardrobe items yet, so give general styling advice.
 Mention what kinds of bottoms, shoes, layers, and accessories would pair well.
-Keep the response under 150 words.
+Format the response as:
+**Look 1 — short vibe name**
+- One concise outfit description.
+**Look 2 — short vibe name**
+- One concise outfit description.
+Keep the full response under 110 words.
 """
         return _chat_completion(prompt, temperature=0.7)
 
@@ -227,8 +277,13 @@ User wardrobe:
 {_format_wardrobe_items(wardrobe_items)}
 
 Use specific wardrobe item names where they fit. Include practical styling
-details like layers, shoes, proportions, or accessories. Keep the response
-under 170 words.
+details like layers, shoes, proportions, or accessories.
+Format the response as:
+**Look 1 — short vibe name**
+- One concise outfit description.
+**Look 2 — short vibe name**
+- One concise outfit description.
+Keep the full response under 120 words.
 """
     return _chat_completion(prompt, temperature=0.7)
 
@@ -275,10 +330,10 @@ Outfit idea:
 {outfit.strip()}
 
 Requirements:
-- 2-4 sentences.
+- 2-3 sentences and no more than 80 words.
 - Casual and authentic, like a real OOTD caption.
 - Mention the item title, price, and platform naturally once each.
 - Capture the outfit vibe in specific terms.
 - Do not use hashtags unless they feel natural.
 """
-    return _chat_completion(prompt, temperature=1.0)
+    return _chat_completion(prompt, temperature=1.0).strip('"')

@@ -27,6 +27,12 @@ def test_search_price_filter():
     assert all(item["price"] <= 10 for item in results)
 
 
+def test_search_does_not_confuse_shoe_size_with_waist_size():
+    results = search_listings("black combat boots", size="8", max_price=None)
+
+    assert results == []
+
+
 def test_suggest_outfit_with_example_wardrobe():
     outfit = suggest_outfit(_sample_item(), get_example_wardrobe())
 
