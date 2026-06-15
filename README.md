@@ -159,6 +159,11 @@ files directly inside the agent tools.
 
 ## Spec Reflection
 
+The written spec helped me define each tool's interface and the session-state
+flow before implementation. This made it easier to test each tool independently
+and then connect them without losing track of which output became the next
+tool's input.
+
 The final implementation follows the original specification: three tools have
 defined interfaces, state flows through a single session, and the planning loop
 returns early when a previous step has no useful output.
